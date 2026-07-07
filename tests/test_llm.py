@@ -84,6 +84,30 @@ def test_extract_json_plain_and_fenced():
     assert _extract_json(fenced) == payload
 
 
+def test_extract_json_tolerates_trailing_explanation():
+    payload = {"mode": "build", "domain": "parking"}
+    raw = json.dumps(payload) + "\n\nHere is the KDMap as requested. Let me know if you need changes."
+    assert _extract_json(raw) == payload
+
+
+def test_extract_json_tolerates_duplicated_json():
+    payload = {"mode": "build", "domain": "parking", "nodes": []}
+    blob = json.dumps(payload)
+    raw = blob + "\n" + blob
+    assert _extract_json(raw) == payload
+
+
+def test_extract_json_strips_leading_prose():
+    payload = {"mode": "build", "domain": "parking"}
+    raw = f"Here is the map:\n{json.dumps(payload)}"
+    assert _extract_json(raw) == payload
+
+
+def test_extract_json_raises_when_no_object():
+    with pytest.raises(json.JSONDecodeError):
+        _extract_json("No JSON here, just explanation.")
+
+
 def test_universal_client_chat_sends_json_mode_and_auth():
     endpoint = Endpoint(
         base_url="https://api.example.com/v1",

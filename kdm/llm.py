@@ -126,7 +126,16 @@ def _extract_json(raw: str) -> dict[str, Any]:
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if fence:
         text = fence.group(1).strip()
-    return json.loads(text)
+
+    start = text.find("{")
+    if start < 0:
+        raise json.JSONDecodeError("No JSON object found", text, 0)
+
+    decoder = json.JSONDecoder()
+    obj, _end = decoder.raw_decode(text[start:])
+    if not isinstance(obj, dict):
+        raise json.JSONDecodeError("Expected JSON object", text, start)
+    return obj
 
 
 def generate_validated(
