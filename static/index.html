@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KDM — Knowledge Domain Mapper</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/svg-pan-zoom/3.6.1/svg-pan-zoom.min.js"></script>
   <style>
     :root {
       --bg: #0f1419;
@@ -69,19 +70,101 @@
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-secondary { background: var(--border); color: var(--text); }
     .btn-export { background: var(--green); color: #0a1a12; }
+    .btn-inline {
+      width: auto;
+      display: inline-block;
+      padding: 0.45rem 0.85rem;
+      margin-bottom: 0;
+      margin-right: 0.5rem;
+      font-size: 0.8rem;
+    }
     .center { display: flex; flex-direction: column; }
     #map-container {
       flex: 1;
       padding: 1rem;
-      overflow: auto;
       background: #121820;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .map-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-shrink: 0;
+    }
+    .map-toolbar .hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    #map-viewport {
+      flex: 1;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #fff;
+      min-height: 400px;
+      position: relative;
     }
     #mermaid-target {
-      background: #fff;
-      border-radius: 12px;
+      width: 100%;
+      height: 100%;
       padding: 1rem;
-      min-height: 400px;
     }
+    #mermaid-target svg {
+      max-width: none;
+      height: auto;
+    }
+    #node-popup {
+      display: none;
+      position: absolute;
+      z-index: 100;
+      width: min(340px, calc(100% - 2rem));
+      max-height: min(70vh, 480px);
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+      pointer-events: auto;
+    }
+    #node-popup.show { display: block; }
+    #node-popup::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 18px;
+      border: 8px solid transparent;
+      border-right-color: var(--border);
+    }
+    #node-popup::after {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: 19px;
+      border: 7px solid transparent;
+      border-right-color: var(--surface);
+    }
+    #node-popup.flip-left::before {
+      left: auto;
+      right: -8px;
+      border-right-color: transparent;
+      border-left-color: var(--border);
+    }
+    #node-popup.flip-left::after {
+      left: auto;
+      right: -7px;
+      border-right-color: transparent;
+      border-left-color: var(--surface);
+    }
+    .popup-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .popup-actions button { flex: 1; margin-bottom: 0; }
     .disclaimer-banner {
       display: none;
       margin: 0 1rem 1rem;
@@ -94,7 +177,8 @@
     }
     .disclaimer-banner.show { display: block; }
     .node-detail h3 { font-size: 1rem; margin-bottom: 0.5rem; }
-    .node-detail .type-badge {
+    .node-detail .type-badge,
+    .type-badge {
       display: inline-block;
       font-size: 0.7rem;
       padding: 0.15rem 0.5rem;
@@ -110,13 +194,20 @@
       border-bottom: 1px solid var(--border);
       color: var(--muted);
     }
+    .option-block {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    .pros-cons { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
     .empty-state {
       color: var(--muted);
       font-size: 0.875rem;
       text-align: center;
       padding: 2rem 1rem;
     }
-    .decision-section { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
     .decision-card {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -199,15 +290,22 @@
 
   <section class="center">
     <div id="map-container">
-      <div id="mermaid-target">
-        <div class="empty-state">Nhập Domain + Target Outcome, rồi bấm "Vẽ bản đồ".</div>
+      <div class="map-toolbar">
+        <button class="btn-secondary btn-inline" id="btn-reset-view" type="button">Reset view</button>
+        <span class="hint">Cuộn chuột = zoom · Kéo = pan · Click node = popup</span>
       </div>
+      <div id="map-viewport">
+        <div id="mermaid-target">
+          <div class="empty-state">Nhập Domain + Target Outcome, rồi bấm "Vẽ bản đồ".</div>
+        </div>
+      </div>
+      <div id="node-popup" role="dialog" aria-label="Chi tiết node"></div>
     </div>
   </section>
 
   <aside class="panel">
     <div id="node-panel" class="node-detail">
-      <div class="empty-state">Click một node trên bản đồ để xem chi tiết.</div>
+      <div class="empty-state">Click một node trên bản đồ để xem chi tiết trong popup.</div>
     </div>
   </aside>
   </main>
@@ -218,6 +316,7 @@ mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose
 let currentMap = null;
 let currentMermaid = "";
 let selectedNodeId = null;
+let panZoomInstance = null;
 const approvals = {};
 
 const $ = (id) => document.getElementById(id);
@@ -237,7 +336,51 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+function destroyPanZoom() {
+  if (panZoomInstance) {
+    panZoomInstance.destroy();
+    panZoomInstance = null;
+  }
+}
+
+function initPanZoom() {
+  const svg = document.querySelector("#mermaid-target svg");
+  if (!svg || typeof svgPanZoom !== "function") return;
+  panZoomInstance = svgPanZoom(svg, {
+    controlIconsEnabled: true,
+    fit: true,
+    center: true,
+    minZoom: 0.2,
+    maxZoom: 5,
+    zoomScaleSensitivity: 0.3,
+  });
+}
+
+$("btn-reset-view").addEventListener("click", () => {
+  if (panZoomInstance) {
+    panZoomInstance.reset();
+    panZoomInstance.fit();
+    panZoomInstance.center();
+  }
+});
+
+function closePopup() {
+  const popup = $("node-popup");
+  popup.classList.remove("show", "flip-left");
+  popup.innerHTML = "";
+}
+
+document.addEventListener("click", (e) => {
+  const popup = $("node-popup");
+  if (!popup.classList.contains("show")) return;
+  if (popup.contains(e.target)) return;
+  if (e.target.closest("#mermaid-target .node")) return;
+  closePopup();
+});
+
 async function renderMermaid(code) {
+  destroyPanZoom();
+  closePopup();
   const target = $("mermaid-target");
   target.innerHTML = "";
   const id = "mmd-" + Date.now();
@@ -248,26 +391,41 @@ async function renderMermaid(code) {
   target.appendChild(pre);
   await mermaid.run({ nodes: [pre] });
   attachNodeClicks();
+  initPanZoom();
+}
+
+function extractNodeId(el) {
+  const raw = el.id || "";
+  const match = raw.match(/flowchart-([^-]+)-/);
+  if (match) return match[1];
+  return raw.replace(/^flowchart-/, "").split("-")[0] || null;
 }
 
 function attachNodeClicks() {
   document.querySelectorAll("#mermaid-target .node").forEach((el) => {
     el.style.cursor = "pointer";
-    el.addEventListener("click", () => {
-      const id = el.id?.replace(/^flowchart-/, "").split("-")[0];
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = extractNodeId(el);
       if (id && currentMap) {
         const node = currentMap.nodes.find((n) => n.id === id);
-        if (node) showNode(node);
+        if (node) {
+          showNodePopup(node, el);
+          showNodeSummary(node);
+        }
       }
     });
   });
 }
 
-function showNode(node) {
-  selectedNodeId = node.id;
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function buildNodeDetailHtml(node) {
   const revEmoji = { green: "🟢", yellow: "🟡", red: "🔴" };
   let html = `
-    <span class="type-badge">${node.type}</span>
+    <span class="type-badge">${esc(node.type)}</span>
     <h3>${esc(node.title)}</h3>
     <p style="font-size:0.875rem;color:var(--muted);margin-bottom:0.75rem">${esc(node.summary)}</p>
   `;
@@ -278,27 +436,93 @@ function showNode(node) {
   }
   if (node.type === "decision" && node.options?.length) {
     html += "<strong style='font-size:0.8rem'>Options</strong>";
+    const rev = node.reversibility ? revEmoji[node.reversibility] : "";
     node.options.forEach((o) => {
-      const rev = node.reversibility ? revEmoji[node.reversibility] : "";
-      html += `<div style="margin:0.5rem 0;font-size:0.8rem">
-        <strong>${rev} ${esc(o.name)}</strong><br/>
-        <span style="color:var(--muted)">${esc(o.fit_reason)}</span>
-      </div>`;
+      html += `<div class="option-block">
+        <strong>${rev} ${esc(o.name)}</strong>
+        <div style="color:var(--muted);margin-top:0.2rem">${esc(o.fit_reason)}</div>`;
+      if (o.pros?.length) {
+        html += `<div class="pros-cons">✓ ${o.pros.map(esc).join(" · ")}</div>`;
+      }
+      if (o.cons?.length) {
+        html += `<div class="pros-cons">✗ ${o.cons.map(esc).join(" · ")}</div>`;
+      }
+      html += "</div>";
     });
+    if (node.reversibility) {
+      html += `<p style="font-size:0.75rem;color:var(--muted)">Reversibility: ${rev} ${esc(node.reversibility)}</p>`;
+    }
     if (node.switch_trigger) {
       html += `<p style="font-size:0.75rem;color:var(--muted)">Điểm chuyển: ${esc(node.switch_trigger)}</p>`;
     }
   }
-  if (node.type === "checkpoint" && node.proof) {
-    html += `<p style="font-size:0.8rem"><strong>Proof:</strong> ${esc(node.proof)}</p>`;
+  if (node.type === "checkpoint") {
+    if (node.proof) {
+      html += `<p style="font-size:0.8rem"><strong>Proof:</strong> ${esc(node.proof)}</p>`;
+    }
+    if (node.requires_external_validation) {
+      html += `<p style="font-size:0.8rem;color:var(--yellow)">⚠️ Cần xác thực bên ngoài</p>`;
+    }
   }
-  html += `<button class="btn-secondary" id="btn-expand" style="margin-top:1rem">Expand node</button>`;
-  $("node-panel").innerHTML = html;
-  $("btn-expand").addEventListener("click", () => expandNode(node.id));
+  return html;
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function showNodePopup(node, anchorEl) {
+  selectedNodeId = node.id;
+  const popup = $("node-popup");
+  const container = $("map-container");
+  popup.innerHTML = buildNodeDetailHtml(node) + `
+    <div class="popup-actions">
+      <button class="btn-secondary" id="btn-popup-expand" type="button">Expand node</button>
+      <button class="btn-secondary" id="btn-popup-close" type="button">Đóng</button>
+    </div>
+  `;
+  popup.classList.add("show");
+
+  const nodeRect = anchorEl.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  popup.style.visibility = "hidden";
+  popup.classList.remove("flip-left");
+
+  requestAnimationFrame(() => {
+    const popupW = popup.offsetWidth;
+    const popupH = popup.offsetHeight;
+    let left = nodeRect.right - containerRect.left + 12;
+    let top = nodeRect.top - containerRect.top;
+
+    if (left + popupW > containerRect.width - 8) {
+      left = nodeRect.left - containerRect.left - popupW - 12;
+      popup.classList.add("flip-left");
+    }
+    if (left < 8) left = 8;
+    if (top + popupH > containerRect.height - 8) {
+      top = Math.max(8, containerRect.height - popupH - 8);
+    }
+    if (top < 8) top = 8;
+
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+    popup.style.visibility = "visible";
+  });
+
+  $("btn-popup-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    closePopup();
+  });
+  $("btn-popup-expand").addEventListener("click", (e) => {
+    e.stopPropagation();
+    closePopup();
+    expandNode(node.id);
+  });
+}
+
+function showNodeSummary(node) {
+  $("node-panel").innerHTML = `
+    <span class="type-badge">${esc(node.type)}</span>
+    <h3>${esc(node.title)}</h3>
+    <p style="font-size:0.875rem;color:var(--muted)">${esc(node.summary)}</p>
+    <p style="font-size:0.75rem;color:var(--muted);margin-top:0.75rem">Chi tiết đầy đủ trong popup trên bản đồ.</p>
+  `;
 }
 
 async function readResponseBody(resp) {
