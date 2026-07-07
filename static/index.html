@@ -301,6 +301,26 @@ function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+async function readResponseBody(resp) {
+  const text = await resp.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { detail: text };
+  }
+}
+
+function formatApiError(data, fallback) {
+  if (!data) return fallback;
+  if (typeof data.detail === "string") return data.detail;
+  if (data.detail && typeof data.detail === "object") {
+    return data.detail.detail || data.detail.errors?.join("; ") || JSON.stringify(data.detail);
+  }
+  if (data.raw_output) return `${data.detail || fallback}\n\nRaw: ${data.raw_output.slice(0, 300)}`;
+  return fallback;
+}
+
 function showDisclaimer(map) {
   const banner = $("disclaimer-banner");
   const needs = map.nodes.some((n) => n.requires_external_validation);
@@ -321,7 +341,7 @@ $("btn-map").addEventListener("click", async () => {
     return;
   }
   $("btn-map").disabled = true;
-  $("map-status").textContent = "Đang gọi LLM vẽ map...";
+  $("map-status").textContent = "Đang vẽ map... (30-90s)";
   $("map-status").className = "status";
   document.body.classList.add("loading");
 
@@ -336,9 +356,9 @@ $("btn-map").addEventListener("click", async () => {
         perspective: $("perspective").value,
       }),
     });
-    const data = await res.json();
+    const data = await readResponseBody(res);
     if (!res.ok) {
-      throw new Error(data.detail?.errors?.join("; ") || JSON.stringify(data.detail) || res.statusText);
+      throw new Error(formatApiError(data, res.statusText));
     }
     currentMap = data.map;
     currentMermaid = data.mermaid;
@@ -358,15 +378,16 @@ $("btn-map").addEventListener("click", async () => {
 
 async function expandNode(nodeId) {
   if (!currentMap) return;
-  $("map-status").textContent = "Đang expand node...";
+  $("map-status").textContent = "Đang expand node... (30-90s)";
+  $("btn-map").disabled = true;
   try {
     const res = await fetch("/expand", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ map: currentMap, node_id: nodeId }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(JSON.stringify(data.detail));
+    const data = await readResponseBody(res);
+    if (!res.ok) throw new Error(formatApiError(data, res.statusText));
     currentMap = data.map;
     currentMermaid = data.mermaid;
     await renderMermaid(currentMermaid);
@@ -377,6 +398,8 @@ async function expandNode(nodeId) {
   } catch (err) {
     $("map-status").textContent = "Expand lỗi: " + err.message;
     $("map-status").className = "status error";
+  } finally {
+    $("btn-map").disabled = false;
   }
 }
 

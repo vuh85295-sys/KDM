@@ -11,6 +11,7 @@ import pytest
 from kdm.llm import (
     Endpoint,
     KDMConfig,
+    MapGenerationError,
     UniversalClient,
     _extract_json,
     generate_validated,
@@ -224,11 +225,11 @@ def test_generate_validated_fails_after_max_retries():
     last_response = '{"domain": "only"}'
     client = SequenceClient(["{bad", "{still bad", last_response])
 
-    result, raw, errors = generate_validated(client, "make map", max_retries=2)
+    with pytest.raises(MapGenerationError) as exc_info:
+        generate_validated(client, "make map", max_retries=2)
 
-    assert result is None
-    assert raw == last_response
-    assert len(errors) == 3
+    assert exc_info.value.last_error
+    assert exc_info.value.raw_output == last_response
     assert client.calls == 3
 
 

@@ -14,6 +14,34 @@ from kdm.prompts import build_compiler_system_prompt
 from kdm.schema import KDMap
 
 
+class LLMConnectionError(Exception):
+    """LLM endpoint unreachable or misconfigured."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
+
+class MapGenerationError(Exception):
+    """LLM responded but output failed validation after retries."""
+
+    def __init__(self, last_error: str, raw_output: str | None = None):
+        self.last_error = last_error
+        self.raw_output = raw_output or ""
+        super().__init__(last_error)
+
+
+MAP_MAKER_KEY_MISSING = (
+    "Chưa cấu hình map_maker.api_key trong kdm_config.json. "
+    "Điền key rồi restart server."
+)
+
+
+def ensure_map_maker_configured(endpoint: Endpoint) -> None:
+    if not endpoint.api_key.strip():
+        raise LLMConnectionError(MAP_MAKER_KEY_MISSING)
+
+
 class Endpoint(BaseModel):
     base_url: str
     api_key: str = ""
@@ -66,10 +94,16 @@ class UniversalClient:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPError as exc:
+            raise LLMConnectionError(
+                f"Không kết nối được LLM tại {self.endpoint.base_url}: {exc}. "
+                "Kiểm tra api_key, base_url và trạng thái dịch vụ LLM."
+            ) from exc
 
         content = data["choices"][0]["message"]["content"]
         return content if isinstance(content, str) else json.dumps(content)
@@ -140,4 +174,5 @@ def generate_validated(
                     ),
                 })
 
-    return None, raw, errors
+    last_error = errors[-1] if errors else "JSON validation failed after retries"
+    raise MapGenerationError(last_error, raw)

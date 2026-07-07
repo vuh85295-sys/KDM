@@ -3,20 +3,31 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from kdm.capsule import ApprovedDecision, MemoryCapsule, export_capsule, slugify
 from kdm.compiler import kdm_to_mermaid
-from kdm.llm import KDMConfig, UniversalClient, generate_validated, load_config
+from kdm.llm import (
+    KDMConfig,
+    LLMConnectionError,
+    MapGenerationError,
+    UniversalClient,
+    ensure_map_maker_configured,
+    generate_validated,
+    load_config,
+)
 from kdm.prompts import build_compiler_user_prompt, build_expand_user_prompt
 from kdm.schema import KDMap
+
+logger = logging.getLogger("kdm")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "kdm_config.json"
@@ -46,10 +57,24 @@ class ExportDCCRequest(ExportCapsuleRequest):
     topic_id: str | None = None
 
 
+def _map_generation_response(exc: MapGenerationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.last_error,
+            "raw_output": exc.raw_output[:2000],
+        },
+    )
+
+
 @app.on_event("startup")
 def reload_config() -> None:
     global config
     config = load_config(CONFIG_PATH)
+    if not config.map_maker.api_key.strip():
+        logger.warning(
+            "map_maker.api_key trống — POST /map sẽ trả 503 cho đến khi cấu hình key."
+        )
 
 
 @app.get("/health")
@@ -62,6 +87,7 @@ async def health() -> dict[str, Any]:
             "model": config.map_maker.model,
             "base_url": config.map_maker.base_url,
             "reachable": await maker.ping(),
+            "api_key_configured": bool(config.map_maker.api_key.strip()),
         },
         "expander": {
             "model": config.expander.model,
@@ -72,47 +98,56 @@ async def health() -> dict[str, Any]:
     }
 
 
-@app.post("/map")
-def create_map(req: MapRequest) -> dict[str, Any]:
+@app.post("/map", response_model=None)
+def create_map(req: MapRequest):
     if not req.domain.strip() or not req.target_outcome.strip():
         raise HTTPException(400, "domain và target_outcome là bắt buộc")
 
-    client = UniversalClient(config.map_maker)
-    user_prompt = build_compiler_user_prompt(
-        req.domain.strip(),
-        req.target_outcome.strip(),
-        req.depth,
-        req.perspective,
-    )
-    kdmap, raw, errors = generate_validated(
-        client,
-        user_prompt,
-        domain=req.domain.strip(),
-        target_outcome=req.target_outcome.strip(),
-    )
-    if kdmap is None:
-        raise HTTPException(422, detail={"errors": errors, "raw": raw})
+    try:
+        ensure_map_maker_configured(config.map_maker)
+        client = UniversalClient(config.map_maker)
+        user_prompt = build_compiler_user_prompt(
+            req.domain.strip(),
+            req.target_outcome.strip(),
+            req.depth,
+            req.perspective,
+        )
+        kdmap, _, _ = generate_validated(
+            client,
+            user_prompt,
+            domain=req.domain.strip(),
+            target_outcome=req.target_outcome.strip(),
+        )
+        return {"map": kdmap.model_dump(), "mermaid": kdm_to_mermaid(kdmap)}
+    except LLMConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except MapGenerationError as exc:
+        return _map_generation_response(exc)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return {"map": kdmap.model_dump(), "mermaid": kdm_to_mermaid(kdmap)}
 
-
-@app.post("/expand")
-def expand_node(req: ExpandRequest) -> dict[str, Any]:
+@app.post("/expand", response_model=None)
+def expand_node(req: ExpandRequest):
     node_ids = {n.id for n in req.map.nodes}
     if req.node_id not in node_ids:
         raise HTTPException(404, f"node_id '{req.node_id}' not found")
 
-    client = UniversalClient(config.expander)
-    user_prompt = build_expand_user_prompt(req.map, req.node_id)
-    kdmap, raw, errors = generate_validated(client, user_prompt)
-    if kdmap is None:
-        raise HTTPException(422, detail={"errors": errors, "raw": raw})
-
-    return {
-        "map": kdmap.model_dump(),
-        "mermaid": kdm_to_mermaid(kdmap),
-        "parent_node_id": req.node_id,
-    }
+    try:
+        client = UniversalClient(config.expander)
+        user_prompt = build_expand_user_prompt(req.map, req.node_id)
+        kdmap, _, _ = generate_validated(client, user_prompt)
+        return {
+            "map": kdmap.model_dump(),
+            "mermaid": kdm_to_mermaid(kdmap),
+            "parent_node_id": req.node_id,
+        }
+    except LLMConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except MapGenerationError as exc:
+        return _map_generation_response(exc)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/export/capsule")
