@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KDM — Knowledge Domain Mapper</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #f56565;
+      --warn-bg: #3d2a00;
+      --warn-border: #f5c542;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
+    header p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    main { display: grid; grid-template-columns: 340px 1fr 320px; gap: 0; min-height: calc(100vh - 72px); }
+    .panel {
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9rem;
+      margin-bottom: 0.85rem;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    input[type=range] { padding: 0; }
+    .depth-val { float: right; color: var(--accent); font-weight: 600; }
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-export { background: var(--green); color: #0a1a12; }
+    .center { display: flex; flex-direction: column; }
+    #map-container {
+      flex: 1;
+      padding: 1rem;
+      overflow: auto;
+      background: #121820;
+    }
+    #mermaid-target {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 400px;
+    }
+    .disclaimer-banner {
+      display: none;
+      margin: 0 1rem 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      color: #ffe9a8;
+      font-size: 0.875rem;
+    }
+    .disclaimer-banner.show { display: block; }
+    .node-detail h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .node-detail .type-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .term-list { list-style: none; margin: 0.5rem 0 1rem; }
+    .term-list li {
+      font-size: 0.8rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .empty-state {
+      color: var(--muted);
+      font-size: 0.875rem;
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+    .decision-section { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+    .decision-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .decision-card.cement { border-color: var(--red); }
+    .decision-card h4 { font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .option-row { margin: 0.4rem 0; font-size: 0.8rem; }
+    .option-row label { display: flex; align-items: flex-start; gap: 0.5rem; color: var(--text); cursor: pointer; }
+    .reason-input { margin-top: 0.5rem; font-size: 0.8rem; }
+    .status { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    .status.error { color: var(--red); }
+    .loading { opacity: 0.6; pointer-events: none; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab {
+      flex: 1;
+      padding: 0.5rem;
+      text-align: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .tab.active { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr; }
+      .panel:last-child { border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>KDM — Knowledge Domain Mapper</h1>
+    <p>Biến ước muốn 2 dòng thành bản đồ hệ thống chuyên môn</p>
+  </header>
+
+  <div id="disclaimer-banner" class="disclaimer-banner"></div>
+
+  <main>
+  <aside class="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="form">Tạo map</div>
+      <div class="tab" data-tab="decisions">Duyệt quyết định</div>
+    </div>
+
+    <div id="tab-form">
+      <label for="domain">Domain</label>
+      <input id="domain" placeholder="VD: Ứng dụng quản lý bãi đỗ xe" />
+
+      <label for="target">Target Outcome <span style="color:var(--red)">*</span></label>
+      <input id="target" placeholder="VD: Chủ bãi xem slot trống realtime trên điện thoại" required />
+
+      <label>Depth <span class="depth-val" id="depth-val">3</span></label>
+      <input type="range" id="depth" min="1" max="5" value="3" />
+
+      <label for="perspective">Perspective</label>
+      <select id="perspective">
+        <option value="engineer">Kỹ sư hệ thống</option>
+        <option value="investor">Nhà đầu tư</option>
+        <option value="founder">Người khởi nghiệp</option>
+        <option value="custom">Tự do nhập</option>
+      </select>
+
+      <button class="btn-primary" id="btn-map">Vẽ bản đồ</button>
+      <p class="status" id="map-status"></p>
+    </div>
+
+    <div id="tab-decisions" style="display:none">
+      <p class="status" id="decision-hint">Tạo map trước để duyệt quyết định.</p>
+      <div id="decision-list"></div>
+      <button class="btn-export" id="btn-export-dcc" disabled>Khởi tạo Project (→ DCC)</button>
+      <button class="btn-secondary" id="btn-export-json" disabled>Tải Capsule JSON</button>
+      <p class="status" id="export-status"></p>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div id="map-container">
+      <div id="mermaid-target">
+        <div class="empty-state">Nhập Domain + Target Outcome, rồi bấm "Vẽ bản đồ".</div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div id="node-panel" class="node-detail">
+      <div class="empty-state">Click một node trên bản đồ để xem chi tiết.</div>
+    </div>
+  </aside>
+  </main>
+
+<script>
+mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+
+let currentMap = null;
+let currentMermaid = "";
+let selectedNodeId = null;
+const approvals = {};
+
+const $ = (id) => document.getElementById(id);
+
+$("depth").addEventListener("input", (e) => {
+  $("depth-val").textContent = e.target.value;
+});
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    const name = tab.dataset.tab;
+    $("tab-form").style.display = name === "form" ? "block" : "none";
+    $("tab-decisions").style.display = name === "decisions" ? "block" : "none";
+    if (name === "decisions") renderDecisions();
+  });
+});
+
+async function renderMermaid(code) {
+  const target = $("mermaid-target");
+  target.innerHTML = "";
+  const id = "mmd-" + Date.now();
+  const pre = document.createElement("pre");
+  pre.className = "mermaid";
+  pre.id = id;
+  pre.textContent = code;
+  target.appendChild(pre);
+  await mermaid.run({ nodes: [pre] });
+  attachNodeClicks();
+}
+
+function attachNodeClicks() {
+  document.querySelectorAll("#mermaid-target .node").forEach((el) => {
+    el.style.cursor = "pointer";
+    el.addEventListener("click", () => {
+      const id = el.id?.replace(/^flowchart-/, "").split("-")[0];
+      if (id && currentMap) {
+        const node = currentMap.nodes.find((n) => n.id === id);
+        if (node) showNode(node);
+      }
+    });
+  });
+}
+
+function showNode(node) {
+  selectedNodeId = node.id;
+  const revEmoji = { green: "🟢", yellow: "🟡", red: "🔴" };
+  let html = `
+    <span class="type-badge">${node.type}</span>
+    <h3>${esc(node.title)}</h3>
+    <p style="font-size:0.875rem;color:var(--muted);margin-bottom:0.75rem">${esc(node.summary)}</p>
+  `;
+  if (node.terminology?.length) {
+    html += "<strong style='font-size:0.8rem'>Terminology</strong><ul class='term-list'>";
+    node.terminology.forEach((t) => { html += `<li>${esc(t)}</li>`; });
+    html += "</ul>";
+  }
+  if (node.type === "decision" && node.options?.length) {
+    html += "<strong style='font-size:0.8rem'>Options</strong>";
+    node.options.forEach((o) => {
+      const rev = node.reversibility ? revEmoji[node.reversibility] : "";
+      html += `<div style="margin:0.5rem 0;font-size:0.8rem">
+        <strong>${rev} ${esc(o.name)}</strong><br/>
+        <span style="color:var(--muted)">${esc(o.fit_reason)}</span>
+      </div>`;
+    });
+    if (node.switch_trigger) {
+      html += `<p style="font-size:0.75rem;color:var(--muted)">Điểm chuyển: ${esc(node.switch_trigger)}</p>`;
+    }
+  }
+  if (node.type === "checkpoint" && node.proof) {
+    html += `<p style="font-size:0.8rem"><strong>Proof:</strong> ${esc(node.proof)}</p>`;
+  }
+  html += `<button class="btn-secondary" id="btn-expand" style="margin-top:1rem">Expand node</button>`;
+  $("node-panel").innerHTML = html;
+  $("btn-expand").addEventListener("click", () => expandNode(node.id));
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function showDisclaimer(map) {
+  const banner = $("disclaimer-banner");
+  const needs = map.nodes.some((n) => n.requires_external_validation);
+  if (needs && map.disclaimer) {
+    banner.textContent = "⚠️ " + map.disclaimer;
+    banner.classList.add("show");
+  } else {
+    banner.classList.remove("show");
+  }
+}
+
+$("btn-map").addEventListener("click", async () => {
+  const domain = $("domain").value.trim();
+  const target = $("target").value.trim();
+  if (!target) {
+    $("map-status").textContent = "Target Outcome là bắt buộc.";
+    $("map-status").className = "status error";
+    return;
+  }
+  $("btn-map").disabled = true;
+  $("map-status").textContent = "Đang gọi LLM vẽ map...";
+  $("map-status").className = "status";
+  document.body.classList.add("loading");
+
+  try {
+    const res = await fetch("/map", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        domain,
+        target_outcome: target,
+        depth: Number($("depth").value),
+        perspective: $("perspective").value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail?.errors?.join("; ") || JSON.stringify(data.detail) || res.statusText);
+    }
+    currentMap = data.map;
+    currentMermaid = data.mermaid;
+    await renderMermaid(currentMermaid);
+    showDisclaimer(currentMap);
+    $("map-status").textContent = `Map xong: ${currentMap.nodes.length} nodes, ${currentMap.stages.length} stages.`;
+    Object.keys(approvals).forEach((k) => delete approvals[k]);
+    updateExportButtons();
+  } catch (err) {
+    $("map-status").textContent = "Lỗi: " + err.message;
+    $("map-status").className = "status error";
+  } finally {
+    $("btn-map").disabled = false;
+    document.body.classList.remove("loading");
+  }
+});
+
+async function expandNode(nodeId) {
+  if (!currentMap) return;
+  $("map-status").textContent = "Đang expand node...";
+  try {
+    const res = await fetch("/expand", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ map: currentMap, node_id: nodeId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(JSON.stringify(data.detail));
+    currentMap = data.map;
+    currentMermaid = data.mermaid;
+    await renderMermaid(currentMermaid);
+    showDisclaimer(currentMap);
+    $("map-status").textContent = `Đã expand node ${nodeId}.`;
+    Object.keys(approvals).forEach((k) => delete approvals[k]);
+    updateExportButtons();
+  } catch (err) {
+    $("map-status").textContent = "Expand lỗi: " + err.message;
+    $("map-status").className = "status error";
+  }
+}
+
+function decisionNodes() {
+  if (!currentMap) return [];
+  const order = { red: 0, yellow: 1, green: 2 };
+  return currentMap.nodes
+    .filter((n) => n.type === "decision")
+    .sort((a, b) => (order[a.reversibility] ?? 9) - (order[b.reversibility] ?? 9));
+}
+
+function renderDecisions() {
+  const list = $("decision-list");
+  const nodes = decisionNodes();
+  if (!nodes.length) {
+    $("decision-hint").textContent = currentMap ? "Không có decision node." : "Tạo map trước.";
+    list.innerHTML = "";
+    return;
+  }
+  $("decision-hint").textContent = `Duyệt ${nodes.length} quyết định (🔴 trước):`;
+  list.innerHTML = nodes.map((n) => {
+    const cls = n.reversibility === "red" ? "decision-card cement" : "decision-card";
+    const opts = n.options.map((o) => `
+      <div class="option-row">
+        <label>
+          <input type="radio" name="dec-${n.id}" value="${esc(o.name)}" ${approvals[n.id]?.chosen_option === o.name ? "checked" : ""} />
+          <span>${esc(o.name)} — ${esc(o.fit_reason)}</span>
+        </label>
+      </div>
+    `).join("");
+    return `
+      <div class="${cls}" data-node="${n.id}">
+        <h4>${n.reversibility === "red" ? "🔴" : n.reversibility === "yellow" ? "🟡" : "🟢"} ${esc(n.title)}</h4>
+        ${opts}
+        <input class="reason-input" placeholder="Lý do chọn..." data-reason="${n.id}" value="${esc(approvals[n.id]?.reason || "")}" />
+      </div>
+    `;
+  }).join("");
+
+  list.querySelectorAll('input[type="radio"]').forEach((r) => {
+    r.addEventListener("change", () => {
+      const card = r.closest(".decision-card");
+      const nodeId = card.dataset.node;
+      const reason = card.querySelector(`[data-reason="${nodeId}"]`).value;
+      approvals[nodeId] = { node_id: nodeId, chosen_option: r.value, reason };
+      updateExportButtons();
+    });
+  });
+  list.querySelectorAll(".reason-input").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const nodeId = inp.dataset.reason;
+      if (approvals[nodeId]) {
+        approvals[nodeId].reason = inp.value;
+        updateExportButtons();
+      }
+    });
+  });
+  updateExportButtons();
+}
+
+function allRedApproved() {
+  const reds = decisionNodes().filter((n) => n.reversibility === "red");
+  return reds.every((n) => approvals[n.id]?.chosen_option && approvals[n.id]?.reason?.trim());
+}
+
+function updateExportButtons() {
+  const hasMap = !!currentMap;
+  const canExport = hasMap && allRedApproved();
+  $("btn-export-dcc").disabled = !canExport;
+  $("btn-export-json").disabled = !canExport;
+}
+
+$("btn-export-json").addEventListener("click", async () => {
+  const body = {
+    map: currentMap,
+    approved_decisions: Object.values(approvals),
+  };
+  const res = await fetch("/export/capsule", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const capsule = await res.json();
+  const blob = new Blob([JSON.stringify(capsule, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (capsule.topic || "kdm-capsule") + ".json";
+  a.click();
+  $("export-status").textContent = "Đã tải capsule JSON.";
+});
+
+$("btn-export-dcc").addEventListener("click", async () => {
+  const body = {
+    map: currentMap,
+    approved_decisions: Object.values(approvals),
+  };
+  $("export-status").textContent = "Đang đẩy vào DCC...";
+  const res = await fetch("/export/dcc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.dcc_pushed) {
+    $("export-status").textContent = `Đã tạo topic DCC: ${data.topic_id}`;
+  } else {
+    $("export-status").textContent = `DCC không khả dụng — tải capsule thủ công. Topic: ${data.topic_id}`;
+    const blob = new Blob([JSON.stringify(data.capsule, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = data.topic_id + ".json";
+    a.click();
+  }
+});
+</script>
+</body>
+</html>

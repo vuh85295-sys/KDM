@@ -1,0 +1,13 @@
+{
+  "map_maker": {
+    "base_url": "https://api.openai.com/v1",
+    "api_key": "",
+    "model": "gpt-4o-mini"
+  },
+  "expander": {
+    "base_url": "http://localhost:11434/v1",
+    "api_key": "ollama",
+    "model": "qwen2.5:7b-instruct"
+  },
+  "dcc_url": "http://localhost:8888"
+}
