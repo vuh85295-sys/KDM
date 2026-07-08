@@ -1,10 +1,35 @@
-from kdm.capsule import ApprovedDecision, export_capsule, slugify
+from kdm.capsule import ApprovedDecision, export_capsule, make_topic_slug, slugify
 from kdm.schema import NodeType
 from tests.conftest import sample_map
 
 
 def test_slugify():
-    assert slugify("Ứng dụng bãi đỗ", "Realtime slot")
+    assert slugify("Ứng dụng bãi đỗ", "Realtime slot") == "ung-dung-bai-do-realtime-slot"
+
+
+def test_make_topic_slug_short_unchanged():
+    slug = make_topic_slug("Parking", "realtime")
+    assert slug == "parking-realtime"
+    assert slug == slug.strip("-")
+    assert slug.isascii()
+
+
+def test_make_topic_slug_long_vietnamese():
+    domain = "Ứng dụng tìm chỗ đậu xe thông minh"
+    target = (
+        "Cho phép tài xế và chủ bãi xem slot trống realtime theo geohash "
+        "với độ trễ dưới ba giây tại thành phố Hồ Chí Minh và vùng lân cận"
+    )
+    assert len(f"{domain} {target}") > 150
+
+    slug = make_topic_slug(domain, target)
+
+    assert len(slug) <= 50
+    assert slug.isascii()
+    assert not slug.startswith("-")
+    assert not slug.endswith("-")
+    assert "ung-dung" in slug
+    assert "đ" not in slug
 
 
 def test_export_capsule():

@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from kdm.capsule import ApprovedDecision, MemoryCapsule, export_capsule, slugify
+from kdm.capsule import ApprovedDecision, MemoryCapsule, export_capsule, make_topic_slug
 from kdm.compiler import kdm_to_mermaid
 from kdm.llm import (
     KDMConfig,
@@ -94,7 +94,7 @@ async def health() -> dict[str, Any]:
             "base_url": config.expander.base_url,
             "reachable": await expander.ping(),
         },
-        "dcc_url": config.dcc_url,
+        "dcc_url": config.dcc.base_url,
     }
 
 
@@ -159,18 +159,21 @@ def export_capsule_endpoint(req: ExportCapsuleRequest) -> dict[str, Any]:
 @app.post("/export/dcc")
 def export_dcc_endpoint(req: ExportDCCRequest) -> dict[str, Any]:
     capsule = export_capsule(req.map, req.approved_decisions)
-    topic_id = req.topic_id or slugify(req.map.domain, req.map.target_outcome)
+    topic_id = req.topic_id or make_topic_slug(req.map.domain, req.map.target_outcome)
+    dcc_base = config.dcc.base_url.rstrip("/")
+    topics_url = f"{dcc_base}/api/topics"
 
     result: dict[str, Any] = {
         "topic_id": topic_id,
         "capsule": json.loads(capsule.to_json()),
         "dcc_pushed": False,
+        "dcc_url": dcc_base,
     }
 
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
-                f"{config.dcc_url.rstrip('/')}/api/topics",
+                topics_url,
                 json={
                     "topic_id": topic_id,
                     "description": capsule.global_context[:2000],
@@ -181,6 +184,10 @@ def export_dcc_endpoint(req: ExportDCCRequest) -> dict[str, Any]:
                 result["dcc_response"] = resp.json()
             else:
                 result["dcc_error"] = resp.text
+    except httpx.RequestError:
+        result["dcc_error"] = (
+            f"DCC không phản hồi tại {topics_url} — kiểm tra port trong kdm_config.json"
+        )
     except Exception as exc:
         result["dcc_error"] = str(exc)
 

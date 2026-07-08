@@ -51,7 +51,7 @@ def test_load_config_defaults_when_missing(tmp_path):
     assert cfg.map_maker.base_url == "http://localhost:11434/v1"
     assert cfg.map_maker.model == "qwen2.5:7b-instruct"
     assert cfg.expander.model == "qwen2.5:7b-instruct"
-    assert cfg.dcc_url == "http://localhost:8788"
+    assert cfg.dcc.base_url == "http://localhost:8788"
 
 
 def test_load_config_from_file(tmp_path):
@@ -66,7 +66,7 @@ def test_load_config_from_file(tmp_path):
             "api_key": "ollama",
             "model": "qwen2.5:7b",
         },
-        "dcc_url": "http://localhost:9999",
+        "dcc": {"base_url": "http://localhost:9999"},
     }
     path = tmp_path / "kdm_config.json"
     path.write_text(json.dumps(data))
@@ -74,7 +74,7 @@ def test_load_config_from_file(tmp_path):
     cfg = load_config(path)
     assert cfg.map_maker.model == "gpt-4o"
     assert cfg.map_maker.api_key == "sk-test"
-    assert cfg.dcc_url == "http://localhost:9999"
+    assert cfg.dcc.base_url == "http://localhost:9999"
 
 
 def test_extract_json_plain_and_fenced():

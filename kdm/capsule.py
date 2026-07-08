@@ -40,9 +40,39 @@ REV_LABEL = {
     Reversibility.cement: "🔴 xi măng",
 }
 
+_TOPIC_SLUG_MAX = 50
+_VN_ASCII = str.maketrans({"đ": "d", "Đ": "D"})
+
+
+def make_topic_slug(domain: str, target_outcome: str) -> str:
+    """ChromaDB collection names must stay within 3–63 chars; KDM caps at 50."""
+    text = f"{domain} {target_outcome}".strip()
+    text = text.translate(_VN_ASCII)
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = text.lower()
+    text = re.sub(r"\s+", "-", text)
+    text = re.sub(r"[^a-z0-9-]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+
+    if not text:
+        return "kdm-topic"
+    if len(text) <= _TOPIC_SLUG_MAX:
+        return text
+
+    cut = text[:_TOPIC_SLUG_MAX]
+    if "-" in cut:
+        cut = cut.rsplit("-", 1)[0]
+    cut = cut.strip("-")
+    return cut or "kdm-topic"
+
 
 def slugify(*parts: str) -> str:
+    """Backward-compatible alias — prefer make_topic_slug for capsule topic."""
+    if len(parts) == 2:
+        return make_topic_slug(parts[0], parts[1])
     text = "-".join(p.strip() for p in parts if p.strip())
+    text = text.translate(_VN_ASCII)
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")
@@ -50,7 +80,7 @@ def slugify(*parts: str) -> str:
 
 
 def export_capsule(kdmap: KDMap, approved: list[ApprovedDecision]) -> MemoryCapsule:
-    topic = slugify(kdmap.domain, kdmap.target_outcome)
+    topic = make_topic_slug(kdmap.domain, kdmap.target_outcome)
 
     context_parts = [
         kdmap.overview,

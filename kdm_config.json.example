@@ -9,5 +9,7 @@
     "api_key": "ollama",
     "model": "qwen2.5:7b-instruct"
   },
-  "dcc_url": "http://localhost:8888"
+  "dcc": {
+    "base_url": "http://localhost:8788"
+  }
 }

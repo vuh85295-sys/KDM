@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from kdm.prompts import build_compiler_system_prompt
 from kdm.schema import KDMap
@@ -48,10 +48,26 @@ class Endpoint(BaseModel):
     model: str
 
 
+class DCCConfig(BaseModel):
+    base_url: str = "http://localhost:8788"
+
+
 class KDMConfig(BaseModel):
     map_maker: Endpoint
     expander: Endpoint
-    dcc_url: str = "http://localhost:8788"
+    dcc: DCCConfig = Field(default_factory=DCCConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_dcc_url(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "dcc_url" in data and "dcc" not in data:
+            data = {**data, "dcc": {"base_url": data["dcc_url"]}}
+        return data
+
+    @property
+    def dcc_url(self) -> str:
+        """Legacy accessor — prefer config.dcc.base_url."""
+        return self.dcc.base_url
 
 
 def load_config(path: str | Path = "kdm_config.json") -> KDMConfig:

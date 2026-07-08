@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from kdm.llm import (
+    DCCConfig,
     Endpoint,
     KDMConfig,
     LLMConnectionError,
@@ -123,3 +125,49 @@ def test_expand_llm_connection_error_returns_503(configured_config):
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "Ollama offline"
+
+
+def test_export_dcc_uses_config_url(configured_config):
+    kdmap = sample_map()
+    custom = configured_config.model_copy(
+        update={"dcc": DCCConfig(base_url="http://dcc-custom:9999")}
+    )
+    body = {"map": kdmap.model_dump(), "approved_decisions": []}
+
+    with patch("kdm.server.config", custom), patch("kdm.server.httpx.Client") as client_cls:
+        http = MagicMock()
+        client_cls.return_value.__enter__.return_value = http
+        resp_mock = MagicMock()
+        resp_mock.status_code = 201
+        resp_mock.json.return_value = {"topic_id": "ok"}
+        http.post.return_value = resp_mock
+
+        resp = client.post("/export/dcc", json=body)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dcc_pushed"] is True
+    assert data["dcc_url"] == "http://dcc-custom:9999"
+    http.post.assert_called_once()
+    assert http.post.call_args.args[0] == "http://dcc-custom:9999/api/topics"
+
+
+def test_export_dcc_unreachable_shows_config_url(configured_config):
+    kdmap = sample_map()
+    custom = configured_config.model_copy(
+        update={"dcc": DCCConfig(base_url="http://localhost:8788")}
+    )
+    body = {"map": kdmap.model_dump(), "approved_decisions": []}
+
+    with patch("kdm.server.config", custom), patch("kdm.server.httpx.Client") as client_cls:
+        http = MagicMock()
+        client_cls.return_value.__enter__.return_value = http
+        http.post.side_effect = httpx.ConnectError("connection refused")
+
+        resp = client.post("/export/dcc", json=body)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dcc_pushed"] is False
+    assert "http://localhost:8788/api/topics" in data["dcc_error"]
+    assert "kiểm tra port trong kdm_config.json" in data["dcc_error"]
