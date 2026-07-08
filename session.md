@@ -108,6 +108,11 @@ Mục tiêu: kiểm chứng Actor của DCC có tuân thủ capsule do KDM sinh 
 - Verify bằng số đo (getComputedStyle, ratio log), không nhìn bằng mắt
 - Bug phát hiện trong chat phải vào session CÙNG LƯỢT — chat là bộ nhớ tạm, session là bộ nhớ đội
 
+### Ba lớp phòng thủ ngôn ngữ — Pattern chính thức
+1. **Khế ước ngôn ngữ có ví dụ đúng/sai**: Không còn câu lệnh suông — là hợp đồng kèm mẫu, đặt ở 2 vị trí (đầu system + cuối user prompt, vì model chú ý mạnh nhất ở dòng cuối)
+2. **Lưới bắt tự động**: Đếm ký tự có dấu tiếng Việt trong output — bằng 0 là chắc chắn English, ép retry kèm message vi phạm. Rẻ, không cần gọi thêm LLM nào để kiểm.
+3. **Format terminology chuẩn hoá**: Song ngữ "Edge Computing — Xử lý dữ liệu gần nguồn..." — biết gọi tên bằng tiếng Anh chuyên gia, hiểu nghĩa bằng tiếng Việt.
+
 ---
 
 **📏 Quy tắc**: session.md ~200 dòng → báo Hermes dọn
