@@ -348,6 +348,21 @@ function destroyPanZoom() {
   }
 }
 
+function refreshPanZoomView() {
+  if (!panZoomInstance) return;
+  try {
+    panZoomInstance.resize();
+    panZoomInstance.fit();
+    panZoomInstance.center();
+  } catch (err) {
+    console.warn("KDM: pan/zoom refresh failed:", err);
+  }
+}
+
+function schedulePanZoomRefresh() {
+  requestAnimationFrame(() => requestAnimationFrame(refreshPanZoomView));
+}
+
 function initPanZoom() {
   if (typeof svgPanZoom === "undefined") {
     console.warn("KDM: svg-pan-zoom not loaded — pan/zoom disabled");
@@ -376,6 +391,7 @@ function initPanZoom() {
 function setupPostRender() {
   try {
     initPanZoom();
+    schedulePanZoomRefresh();
   } catch (err) {
     console.warn("KDM: pan/zoom init failed:", err);
     panZoomInstance = null;
@@ -430,9 +446,14 @@ function bindNodeClickDelegation() {
 $("btn-reset-view").addEventListener("click", () => {
   if (panZoomInstance) {
     panZoomInstance.reset();
-    panZoomInstance.fit();
-    panZoomInstance.center();
+    refreshPanZoomView();
   }
+});
+
+let panZoomResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(panZoomResizeTimer);
+  panZoomResizeTimer = setTimeout(refreshPanZoomView, 120);
 });
 
 function closePopup() {
@@ -663,6 +684,7 @@ async function expandNode(nodeId) {
     currentMap = data.map;
     currentMermaid = data.mermaid;
     await renderMermaid(currentMermaid);
+    schedulePanZoomRefresh();
     showDisclaimer(currentMap);
     $("map-status").textContent = `Đã expand node ${nodeId}.`;
     Object.keys(approvals).forEach((k) => delete approvals[k]);
