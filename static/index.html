@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KDM — Knowledge Domain Mapper</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/svg-pan-zoom/3.6.1/svg-pan-zoom.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/svg-pan-zoom/3.6.1/svg-pan-zoom.min.js"
+    onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js'"></script>
   <style>
     :root {
       --bg: #0f1419;
@@ -113,8 +114,9 @@
       padding: 1rem;
     }
     #mermaid-target svg {
-      max-width: none;
-      height: auto;
+      max-width: none !important;
+      width: 100%;
+      height: 100%;
     }
     #node-popup {
       display: none;
@@ -338,14 +340,29 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 function destroyPanZoom() {
   if (panZoomInstance) {
-    panZoomInstance.destroy();
+    try {
+      panZoomInstance.destroy();
+    } catch (err) {
+      console.warn("KDM: pan/zoom destroy failed:", err);
+    }
     panZoomInstance = null;
   }
 }
 
 function initPanZoom() {
-  const svg = document.querySelector("#mermaid-target svg");
-  if (!svg || typeof svgPanZoom !== "function") return;
+  if (typeof svgPanZoom === "undefined") {
+    console.warn("KDM: svg-pan-zoom not loaded — pan/zoom disabled");
+    return;
+  }
+  const container = $("mermaid-target");
+  const svg = container?.querySelector("svg");
+  if (!svg) {
+    console.warn("KDM: no SVG found after mermaid render");
+    return;
+  }
+  svg.style.maxWidth = "none";
+  svg.style.width = "100%";
+  svg.style.height = "100%";
   panZoomInstance = svgPanZoom(svg, {
     controlIconsEnabled: true,
     fit: true,
@@ -353,6 +370,61 @@ function initPanZoom() {
     minZoom: 0.2,
     maxZoom: 5,
     zoomScaleSensitivity: 0.3,
+    dblClickZoomEnabled: false,
+  });
+}
+
+function setupPostRender() {
+  try {
+    initPanZoom();
+  } catch (err) {
+    console.warn("KDM: pan/zoom init failed:", err);
+    panZoomInstance = null;
+  }
+  try {
+    markNodesClickable();
+  } catch (err) {
+    console.warn("KDM: node styling failed:", err);
+  }
+}
+
+function markNodesClickable() {
+  document.querySelectorAll("#mermaid-target .node, #mermaid-target [id^='flowchart-']").forEach((el) => {
+    el.style.cursor = "pointer";
+  });
+}
+
+function domIdToNodeId(domId) {
+  if (!domId || !currentMap) return null;
+  const direct = currentMap.nodes.find((n) => n.id === domId);
+  if (direct) return direct.id;
+
+  const prefix = "flowchart-";
+  if (!domId.startsWith(prefix)) return null;
+
+  const rest = domId.slice(prefix.length);
+  const sorted = [...currentMap.nodes].sort((a, b) => b.id.length - a.id.length);
+  for (const node of sorted) {
+    if (rest === node.id || rest.startsWith(`${node.id}-`)) return node.id;
+  }
+  return null;
+}
+
+function resolveNodeElement(target) {
+  return target.closest(".node, [id^='flowchart-']");
+}
+
+function bindNodeClickDelegation() {
+  $("mermaid-target").addEventListener("click", (e) => {
+    const nodeEl = resolveNodeElement(e.target);
+    if (!nodeEl || !currentMap) return;
+    const id = domIdToNodeId(nodeEl.id);
+    if (!id) return;
+    const node = currentMap.nodes.find((n) => n.id === id);
+    if (!node) return;
+    e.stopPropagation();
+    showNodePopup(node, nodeEl);
+    showNodeSummary(node);
   });
 }
 
@@ -374,7 +446,7 @@ document.addEventListener("click", (e) => {
   const popup = $("node-popup");
   if (!popup.classList.contains("show")) return;
   if (popup.contains(e.target)) return;
-  if (e.target.closest("#mermaid-target .node")) return;
+  if (e.target.closest("#mermaid-target .node, #mermaid-target [id^='flowchart-']")) return;
   closePopup();
 });
 
@@ -390,33 +462,10 @@ async function renderMermaid(code) {
   pre.textContent = code;
   target.appendChild(pre);
   await mermaid.run({ nodes: [pre] });
-  attachNodeClicks();
-  initPanZoom();
+  setupPostRender();
 }
 
-function extractNodeId(el) {
-  const raw = el.id || "";
-  const match = raw.match(/flowchart-([^-]+)-/);
-  if (match) return match[1];
-  return raw.replace(/^flowchart-/, "").split("-")[0] || null;
-}
-
-function attachNodeClicks() {
-  document.querySelectorAll("#mermaid-target .node").forEach((el) => {
-    el.style.cursor = "pointer";
-    el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const id = extractNodeId(el);
-      if (id && currentMap) {
-        const node = currentMap.nodes.find((n) => n.id === id);
-        if (node) {
-          showNodePopup(node, el);
-          showNodeSummary(node);
-        }
-      }
-    });
-  });
-}
+bindNodeClickDelegation();
 
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
