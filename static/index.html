@@ -350,10 +350,13 @@ function destroyPanZoom() {
 
 function refreshPanZoomView() {
   if (!panZoomInstance) return;
+  const svg = $("mermaid-target")?.querySelector("svg");
+  if (svg) applyMermaidSvgStyles(svg);
   try {
     panZoomInstance.resize();
     panZoomInstance.fit();
     panZoomInstance.center();
+    if (svg) verifyMermaidSvgLayout(svg);
   } catch (err) {
     console.warn("KDM: pan/zoom refresh failed:", err);
   }
@@ -361,6 +364,30 @@ function refreshPanZoomView() {
 
 function schedulePanZoomRefresh() {
   requestAnimationFrame(() => requestAnimationFrame(refreshPanZoomView));
+}
+
+function applyMermaidSvgStyles(svg) {
+  const target = $("mermaid-target");
+  const viewport = $("map-viewport");
+  const h = Math.max(target.clientHeight, viewport.clientHeight, 400);
+  svg.style.cssText = [
+    "max-width: none !important",
+    "width: 100% !important",
+    `height: ${h}px !important`,
+    `min-height: ${h}px !important`,
+  ].join("; ");
+}
+
+function verifyMermaidSvgLayout(svg) {
+  const target = $("mermaid-target");
+  const containerH = target.clientHeight || $("map-viewport").clientHeight;
+  const svgH = parseFloat(getComputedStyle(svg).height) || 0;
+  const ratio = containerH > 0 ? svgH / containerH : 0;
+  const ok = containerH > 0 && ratio >= 0.85;
+  const msg = `KDM svg layout verify: svg=${svgH.toFixed(0)}px container=${containerH}px ratio=${ratio.toFixed(2)}`;
+  if (ok) console.log(msg + " OK");
+  else console.warn(msg + " FAIL — expected svg height ≈ container (not ~200px)");
+  return { svgH, containerH, ratio, ok };
 }
 
 function initPanZoom() {
@@ -374,9 +401,7 @@ function initPanZoom() {
     console.warn("KDM: no SVG found after mermaid render");
     return;
   }
-  svg.style.maxWidth = "none";
-  svg.style.width = "100%";
-  svg.style.height = "100%";
+  applyMermaidSvgStyles(svg);
   panZoomInstance = svgPanZoom(svg, {
     controlIconsEnabled: true,
     fit: true,
