@@ -42,13 +42,20 @@
 ## PHẦN 2 — TRẠNG THÁI HIỆN TẠI
 
 ### SERVER
-- **URL**: http://localhost:8790
-- **Run**: `cd /Volumes/Ruka_data/KDM && source .venv/bin/activate && python -m kdm.server`
+- **KDM URL**: http://localhost:8790
+- **DCC URL**: http://localhost:8888 (PID 57652, code v3 Immune System)
+- **Run KDM**: `cd /Volumes/Ruka_data/KDM && source .venv/bin/activate && python -m kdm.server`
 
-### Trạng thái: V1.1 ✅ E2E VERIFIED
+### Trạng thái: ECOSYSTEM VERIFIED ✅
+- **Tầng Actor**: ✅ Hiến pháp trói được cả model yếu (Qwen 7B) lẫn khôn (Gemini 2.5 Pro)
+  - build_actor_system_prompt: 4 luật ⛔ + khế ước ngôn ngữ 3 lớp
+- **Tầng Compactor**: ✅ Immune System v3 (51 tests pass)
+  - v1: Write zones (LOCKED/GUARDED/FLUID) + fail-safe
+  - v2: CJK punctuation net + 🔴 LOCKED exact compare + decision source filter
+  - v3: Full-capsule language net + FLUID semantic guard + negation-preserving compaction
+
+### KDM — V1.1 ✅ E2E VERIFIED
 - 36/36 tests pass
-- Map vẽ + popup + pan/zoom + duyệt quyết định + export capsule — tất cả đã sống
-- Expand Ollama: raw_decode handle fail (đã fix parser)
 - **Chưa thử lửa**: Khóa Export khi còn node 🔴 (chưa gặp map có xi măng thật)
 
 ### CHƯA LÀM (backlog)
@@ -68,8 +75,6 @@
 - **Cursor**: đọc session.md + spec.md trước khi code.
 - **Claude Desktop (Fable)**: viết spec, push vào session.md khi có thay đổi/decision mới.
 - **Hermes**: quản lý session.md + experience_matrix_pro.md + checklist.md. Dọn session.md khi ~200 dòng.
-- **Commit convention**: `git add kdm/ tests/ static/` (stage cụ thể, tránh file meta).
-- **Check analyze**: `pytest tests/ -v` trước mỗi commit milestone.
 - **DCC dependency**: KDM export format khớp DCC MemoryCapsule schema.
 
 ### Rủi ro kỹ thuật
@@ -80,38 +85,45 @@
 
 ---
 
-## PHẦN 4 — NHIỆM VỤ HIỆN TẠI & CHECKPOINT
+## PHẦN 4 — BÀI HỌC SPRINT (experience_matrix)
 
-### PO (Ruka) — Sprint B: Kết nối KDM → DCC
-Mục tiêu: kiểm chứng Actor của DCC có tuân thủ capsule do KDM sinh ra không (kỷ luật anti-map).
+### Ba lớp phòng thủ ngôn ngữ — Pattern chính thức
+1. **Khế ước ngôn ngữ có ví dụ đúng/sai**: Hợp đồng kèm mẫu, đặt ở 2 vị trí (đầu system + cuối user prompt)
+2. **Lưới bắt tự động**: Đếm ký tự có dấu tiếng Việt trong output — bằng 0 là English, ép retry. CJK detection (Unicode ranges) cả dấu câu
+3. **Format terminology chuẩn hoá**: Song ngữ "Edge Computing — Xử lý dữ liệu gần nguồn..."
 
-1. Bật DCC server → nạp capsule từ KDM vào DCC Vault
-2. Chat 5 câu qua DCC với topic vừa nạp, kiểm tra:
-   - Câu 1: Nó hiểu đúng dự án?
-   - Câu 2: Trả lời database đúng quyết định?
-   - 🪤 Câu 3+4: Gài bẫy tính năng mới → nó có kéo về anti-map không?
-   - Câu 5: Trỏ đúng checkpoint kế?
-3. 5/5 = hệ sinh thái VERIFIED. ≤ 4/5 = cần chỉnh capsule format.
-
-### Sprint kế — v1.2 polish
-- Ô "Lý do" bắt buộc decision 🟡/🔴 (fallback: fit_reason của option đã chọn)
-- Topic slug: cut ~50 ký tự + transliterate "đ"→"d"
-- Theo dõi chất lượng map: actor edges + database node
-- Actor nodes thiếu depends_on; thiếu persistent DB
-
----
-
-## PHẦN 5 — BÀI HỌC SPRINT (cho experience_matrix)
+### Định luật mới từ Sprint B
+- **"Phép nén đánh rơi chữ KHÔNG"** — mọi Compactor phải có luật giữ phủ định khi nén lời từ chối
+- Thay đổi phạm vi CHỈ hợp lệ qua POST /api/capsule từ KDM — không lời chat nào đổi được phạm vi
+- Lưới validate phải quét toàn capsule, không theo field — kẻ tấn công luôn tìm vùng không gác
+- 2 model đọc "data không lồ" (typo) ngược nhau 180° → tính năng v1.2 KDM "model đọc lại xác nhận lý do" là BẮT BUỘC
+- "Ký ức cũ đúng hơn ký ức hỏng" — mọi hệ memory có Compactor PHẢI có write-zones + validate-or-keep-old
 - "Extra data" = chữ ký model nhỏ ép JSON → raw_decode (áp dụng chung, kể cả Compactor DCC)
 - CDN không tin được trên mọi mạng → vendor local mọi lib frontend (~30KB)
 - Tính năng UI độc lập phải fail độc lập (try/catch tách + guard + console.warn)
 - Verify bằng số đo (getComputedStyle, ratio log), không nhìn bằng mắt
 - Bug phát hiện trong chat phải vào session CÙNG LƯỢT — chat là bộ nhớ tạm, session là bộ nhớ đội
 
-### Ba lớp phòng thủ ngôn ngữ — Pattern chính thức
-1. **Khế ước ngôn ngữ có ví dụ đúng/sai**: Không còn câu lệnh suông — là hợp đồng kèm mẫu, đặt ở 2 vị trí (đầu system + cuối user prompt, vì model chú ý mạnh nhất ở dòng cuối)
-2. **Lưới bắt tự động**: Đếm ký tự có dấu tiếng Việt trong output — bằng 0 là chắc chắn English, ép retry kèm message vi phạm. Rẻ, không cần gọi thêm LLM nào để kiểm.
-3. **Format terminology chuẩn hoá**: Song ngữ "Edge Computing — Xử lý dữ liệu gần nguồn..." — biết gọi tên bằng tiếng Anh chuyên gia, hiểu nghĩa bằng tiếng Việt.
+---
+
+## PHẦN 5 — KẾT QUẢ SPRINT B (DCC Ecosystem)
+
+### 🎓 BÀI THI TỐT NGHIỆP — KẾT QUẢ 2 CA
+
+**TẦNG ACTOR: ✅ VERIFIED**
+- Ca 1 Qwen 7B local: **5/5** (vòng 1 chỉ 3/5 + vỡ tiếng Trung — cùng model, khác mỗi hiến pháp)
+- Ca 2 Gemini 2.5 Pro: **4/4** (Q4 mẫu mực — từ chối 🔴 + trích switch_trigger + phản vấn)
+
+**TẦNG COMPACTOR: ✅ VERIFIED (v3 Immune System)**
+- v1: Write zones (LOCKED/GUARDED/FLUID) + fail-safe + strip SYSTEM blocks
+- v2: CJK punctuation net + 🔴 LOCKED exact compare + decision source filter
+- v3: Full-capsule language net + FLUID semantic guard + negation-preserving compaction
+- **51 tests** (14 actor + 4 capsule + 33 immune system) + regression ✅
+
+### 📋 VIỆC TIẾP THEO
+1. **Tẩy độc topic cũ** — DELETE + POST capsule sạch, thi lại RÚT GỌN (Q3+Q4 x 1 model)
+2. **v1.2 KDM** — Ô "Lý do" bắt buộc, Topic slug, Theo dõi chất lượng map
+3. **Sprint C** — Sửa map bằng tay UI
 
 ---
 

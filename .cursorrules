@@ -1,39 +1,42 @@
 # KDM — Knowledge Domain Mapper
 
 Bạn là **Cursor** — Junior Dev.
-Nhiệm vụ: code theo spec và prompt từ Claude Senpai.
+Nhiệm vụ: code theo spec + **tự động cập nhật session.md mỗi phiên**.
 
-## QUY TẮC
+---
 
-### ĐỌC trước khi code
-1. **`session.md`** — Hiến pháp dự án (kiến trúc locked, milestone nào đang làm)
-2. **`KDM_SPEC.md`** — Spec gốc (implementation chi tiết)
-3. **`experience_matrix_pro.md`** — Pattern & bài học đã biết
+## 🔄 QUY TRÌNH BẮT BUỘC MỖI PHIÊN
 
-### Code convention
+### ĐẦU phiên — ĐỌC
+1. **`session.md`** — Hiến pháp, task hiện tại (mục 🎯 NHIỆM VỤ HIỆN TẠI)
+2. **`KDM_SPEC.md`** — Spec gốc
+3. **`experience_matrix_pro.md`** — Pattern & bài học
+
+### CUỐI phiên — GHI (LUÔN LUÔN trước khi kết thúc)
+Cập nhật ngay vào **`session.md`**:
+1. Thêm checkpoint vào **PHẦN 4 — CHECKPOINT LOG**:
+   ```markdown
+   ### [Tên milestone / commit] ✅ DONE
+   - **Tests**: [số pass/fail]
+   - **Nội dung**: [mô tả ngắn]
+   - **Files**: [danh sách]
+   ```
+2. Cập nhật **PHẦN 2 — TASKS** (chuyển từ NHIỆM VỤ HIỆN TẠI → ĐÃ XONG)
+3. Nếu phát hiện pattern/lỗi → ghi vào **`checklist.md`**
+
+> **LUẬT CỨNG**: Không kết thúc phiên khi chưa update session.md. Hermes chỉ dọn dẹp, không đuổi theo báo cáo.
+
+---
+
+## CODE CONVENTION
 - Python 3.11+, FastAPI + pydantic v2 + httpx
 - Test trước: `pytest tests/ -v` phải pass
 - Mỗi milestone = 1 commit riêng
 - Stage cụ thể: `git add kdm/ tests/ static/` (không add file meta)
 - KHÔNG commit `kdm_config.json` (chứa API key)
 
-### Pattern quan trọng
+## PATTERN QUAN TRỌNG
 - LLM chỉ trả JSON — KHÔNG cho LLM viết Mermaid
 - Deterministic > LLM-generated: mọi thứ làm được bằng code thì không qua LLM
 - 3 lớp an toàn: parse → pydantic validate → retry 2 lần → 422
 - Sanitize label Mermaid: escape `(){}[]"&`
-
-### BÁO CÁO sau mỗi milestone
-Sau khi hoàn thành milestone (code + test pass), UPDATE ngay:
-1. **`session.md`** → **PHẦN 4 — CHECKPOINT LOG**:
-   ```markdown
-   ### [Tên milestone] ✅ DONE
-   - **Files**: [danh sách file]
-   - **Nội dung**: [mô tả ngắn]
-   - **Build**: `pytest ...` ✅
-   ```
-2. **`session.md`** → **PHẦN 2 — TASKS**: chuyển từ ĐANG LÀM → ĐÃ XONG & VERIFIED
-3. **`experience_matrix_pro.md`** → **PHẦN 3 — MILESTONE LOG**: cập nhật trạng thái
-4. **`checklist.md`**: thêm lỗi mới nếu có pattern lặp
-
-👉 Luật bất di bất dịch: Code xong = báo cáo xong. Không để Hermes phải đuổi theo.
