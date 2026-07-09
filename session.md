@@ -43,27 +43,22 @@
 
 ### SERVER
 - **KDM URL**: http://localhost:8790
-- **DCC URL**: http://localhost:8888 (PID 57652, code v3 Immune System)
+- **DCC URL**: http://localhost:8888 (PID 91046, code v4 Immune System)
 - **Run KDM**: `cd /Volumes/Ruka_data/KDM && source .venv/bin/activate && python -m kdm.server`
 
-### Trạng thái: ECOSYSTEM VERIFIED ✅
-- **Tầng Actor**: ✅ Hiến pháp trói được cả model yếu (Qwen 7B) lẫn khôn (Gemini 2.5 Pro)
-  - build_actor_system_prompt: 4 luật ⛔ + khế ước ngôn ngữ 3 lớp
-- **Tầng Compactor**: ✅ Immune System v3 (51 tests pass)
-  - v1: Write zones (LOCKED/GUARDED/FLUID) + fail-safe
-  - v2: CJK punctuation net + 🔴 LOCKED exact compare + decision source filter
-  - v3: Full-capsule language net + FLUID semantic guard + negation-preserving compaction
+### Sprint B: 🏆 ECOSYSTEM VERIFIED (2026-07-09)
+- **Tầng Actor**: ✅ Hiến pháp trói được cả Qwen 7B (5/5) lẫn Gemini (4/4)
+- **Tầng Compactor**: ✅ Immune System v4 (57 tests) — bytes-frozen global_context
+- **Vòng khép kín E2E**: Wish → KDM → duyệt 🔴 → export → POST /api/capsule → Vault → Actor → Compactor → ký ức tiến hóa
 
-### KDM — V1.1 ✅ E2E VERIFIED
-- 36/36 tests pass
-- **Chưa thử lửa**: Khóa Export khi còn node 🔴 (chưa gặp map có xi măng thật)
+### KDM — V1.1 ✅ E2E VERIFIED (36 tests)
+- **Chưa thử lửa**: Khóa Export khi còn node 🔴
 
-### CHƯA LÀM (backlog)
-- Learn Mode UI (schema đã hỗ trợ `mode`, UI để v2)
-- Auth, multi-user, lưu map server-side
-- Sửa map bằng tay trên UI (kéo thả node)
-- Tiếng Anh UI
-- **Sổ nợ v1.2**: Ô "Lý do" bắt buộc decision 🟡/🔴, Topic slug, Theo dõi chất lượng map
+### Backlog v1.2
+- Compactor tự phong 🔴 (cap 🟡, 🔴 chỉ từ KDM/user confirm)
+- Rác turn thô "(turn: ...)" trong current_state
+- Ô "Lý do" bắt buộc + model đọc lại xác nhận
+- Topic slug ≤50 ký tự, Learn Mode UI, kéo thả map, auth
 
 ---
 
@@ -75,55 +70,33 @@
 - **Cursor**: đọc session.md + spec.md trước khi code.
 - **Claude Desktop (Fable)**: viết spec, push vào session.md khi có thay đổi/decision mới.
 - **Hermes**: quản lý session.md + experience_matrix_pro.md + checklist.md. Dọn session.md khi ~200 dòng.
+- **DCC immune system**: 4 phiên bản v1→v4, 57 tests, repo `vuh85295-sys/DDC`
 - **DCC dependency**: KDM export format khớp DCC MemoryCapsule schema.
 
 ### Rủi ro kỹ thuật
-1. **LLM ảo giác node id** — depends_on/stage_id trỏ đến id không tồn tại → validation bắt được, retry.
-2. **Special chars tiếng Việt trong Mermaid** — compiler sanitize label, test unit riêng.
-3. **Model 7B local ảo giác roadmap** — lý do map_maker dùng cloud model mạnh, chỉ expand dùng local.
-4. **DCC server không chạy** — export fallback: trả file JSON để nạp tay, không crash.
+1. **LLM ảo giác node id** → validation bắt được, retry.
+2. **Special chars tiếng Việt trong Mermaid** → compiler sanitize label.
+3. **Model 7B local ảo giác roadmap** → map_maker dùng cloud, expand dùng local.
+4. **DCC server không chạy** → export fallback file JSON.
 
 ---
 
-## PHẦN 4 — BÀI HỌC SPRINT (experience_matrix)
+## PHẦN 4 — BÀI HỌC SPRINT B (experience_matrix)
 
-### Ba lớp phòng thủ ngôn ngữ — Pattern chính thức
-1. **Khế ước ngôn ngữ có ví dụ đúng/sai**: Hợp đồng kèm mẫu, đặt ở 2 vị trí (đầu system + cuối user prompt)
-2. **Lưới bắt tự động**: Đếm ký tự có dấu tiếng Việt trong output — bằng 0 là English, ép retry. CJK detection (Unicode ranges) cả dấu câu
-3. **Format terminology chuẩn hoá**: Song ngữ "Edge Computing — Xử lý dữ liệu gần nguồn..."
+### Ba lớp phòng thủ ngôn ngữ
+1. **Khế ước ngôn ngữ có ví dụ đúng/sai**: 2 vị trí (đầu system + cuối user prompt)
+2. **Lưới bắt tự động**: Đếm ký tự có dấu tiếng Việt + CJK detection
+3. **Format terminology chuẩn hoá**: Song ngữ
 
-### Định luật mới từ Sprint B
-- **"Phép nén đánh rơi chữ KHÔNG"** — mọi Compactor phải có luật giữ phủ định khi nén lời từ chối
-- Thay đổi phạm vi CHỈ hợp lệ qua POST /api/capsule từ KDM — không lời chat nào đổi được phạm vi
-- Lưới validate phải quét toàn capsule, không theo field — kẻ tấn công luôn tìm vùng không gác
-- 2 model đọc "data không lồ" (typo) ngược nhau 180° → tính năng v1.2 KDM "model đọc lại xác nhận lý do" là BẮT BUỘC
-- "Ký ức cũ đúng hơn ký ức hỏng" — mọi hệ memory có Compactor PHẢI có write-zones + validate-or-keep-old
-- "Extra data" = chữ ký model nhỏ ép JSON → raw_decode (áp dụng chung, kể cả Compactor DCC)
-- CDN không tin được trên mọi mạng → vendor local mọi lib frontend (~30KB)
-- Tính năng UI độc lập phải fail độc lập (try/catch tách + guard + console.warn)
-- Verify bằng số đo (getComputedStyle, ratio log), không nhìn bằng mắt
-- Bug phát hiện trong chat phải vào session CÙNG LƯỢT — chat là bộ nhớ tạm, session là bộ nhớ đội
-
----
-
-## PHẦN 5 — KẾT QUẢ SPRINT B (DCC Ecosystem)
-
-### 🎓 BÀI THI TỐT NGHIỆP — KẾT QUẢ 2 CA
-
-**TẦNG ACTOR: ✅ VERIFIED**
-- Ca 1 Qwen 7B local: **5/5** (vòng 1 chỉ 3/5 + vỡ tiếng Trung — cùng model, khác mỗi hiến pháp)
-- Ca 2 Gemini 2.5 Pro: **4/4** (Q4 mẫu mực — từ chối 🔴 + trích switch_trigger + phản vấn)
-
-**TẦNG COMPACTOR: ✅ VERIFIED (v3 Immune System)**
-- v1: Write zones (LOCKED/GUARDED/FLUID) + fail-safe + strip SYSTEM blocks
-- v2: CJK punctuation net + 🔴 LOCKED exact compare + decision source filter
-- v3: Full-capsule language net + FLUID semantic guard + negation-preserving compaction
-- **51 tests** (14 actor + 4 capsule + 33 immune system) + regression ✅
-
-### 📋 VIỆC TIẾP THEO
-1. **Tẩy độc topic cũ** — DELETE + POST capsule sạch, thi lại RÚT GỌN (Q3+Q4 x 1 model)
-2. **v1.2 KDM** — Ô "Lý do" bắt buộc, Topic slug, Theo dõi chất lượng map
-3. **Sprint C** — Sửa map bằng tay UI
+### 8 Định luật Sprint B
+1. Capsule inject không luật thi hành = tài liệu tham khảo; model càng mạnh phá càng thuyết phục
+2. Hiến pháp phải trói CẢ kẻ nói (Actor) lẫn kẻ ghi (Compactor)
+3. Ký ức phải phân vùng ghi: FROZEN (bytes-equal) / GUARDED (append + source filter) / FLUID (có lính gác ngữ nghĩa)
+4. "Phép nén đánh rơi chữ KHÔNG" — nén lời từ chối phải giữ phủ định
+5. Chất độc luôn tìm vùng không gác: đảo (nói dối) → cộng (pha loãng) → vùng FLUID
+6. Validate-or-keep-old: ký ức cũ đúng hơn ký ức hỏng
+7. Rút quyền viết thắng thêm lính gác — vùng không cửa không cần khóa
+8. Bài test bẫy tự nó đầu độc ký ức — mọi lần thử lửa phải có tẩy độc + khám nghiệm hậu kỳ
 
 ---
 
